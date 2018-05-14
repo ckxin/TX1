@@ -1,0 +1,129 @@
+#摄像头采集视频流实现#
+
+by xin
+
+
+##1.激活摄像头与登陆##
+
+摄像头买回来首先要激活，摄像头快速指南上会有具体激活步骤，以海康摄像头为例，我选择的是SADP软件激活，在windows系统上去海康官网下载中心找到软件包下载下来，解压，安装时一定要**注意：**第一次安装时会有一步安装win10Cap和vc_redist，这两个一定要先安装好，否则一会儿软件可能打不开。如果第一次没安装上，软件会卡在安装无法运行，这时不要急，先去控制面板卸载刚刚安装的SADP，然后去百度搜索win10Cap和vc_redist两个软件安装上，然后再次安装海康SADP软件，按要求重启，这样应该就没问题了，此时桌面上或安装路径下应该会出现一个设备网络搜索图标或SADPTool.exe执行程序。
+
+下面是激活过程，首先保证摄像头和你的windows电脑在同一个局域网下，快速指南上应该会有网络连接示意图，连到同一个路由器，或者通过网线直连(网线直连最好将主机设置静态IP，不会设置可自行百度)。然后打开刚刚安装好的SADP软件，此时界面中会显示出已连接设备，如果没有请刷新，然后选中处于未激活的摄像头标号，在“激活设备”处设置摄像机密码，点击激活，摄像机状态转变为已激活，激活完成。
+
+接下来设置摄像头IP、网关等参数，最好将IP设置成静态，记得使摄像头IP与主机IP处于同一网段内，网关，DNS等不清楚可参考主机网络连接信息。记下此时摄像头IP，以后连接开发都要用到。设置好后在下方输入刚刚设置的摄像机密码，单击“修改”，提示“修改参数成功”后，则表示IP等参数设置生效。
+
+最后打开网页，输入刚刚设置的摄像头IP地址进入登陆页面，初始登陆用户为admin，密码为你刚刚设置的摄像机密码，分别输入登陆即可，此时你可以添加用户，具体参见教程，因为我后来没用在此就不多讲了。此时你发现看不到画面，左下角有几个图标，最后一个为插件切换，点击切换到Webcomponents(第一个)，此时显示“请点击此处下载插件，安装时请关闭浏览器”，你可以试着安装一下，一般安装完应该还是不行，后来我百度了一下，据说要用32位的浏览器，然后我试了一下微软的IE浏览器(注意是IE不是Edge)，在弹出的是否允许运行插件弹窗点击允许后，竟然出现画面了，很神奇。至此摄像头的设置及基本操作完成。
+
+**注：**海康官网SADP下载地址 http://www.hikvision.com/cn/download_more_393.html
+
+##2.Ubuntu系统下利用opencv及ffmpeg调用网络摄像头
+
+我参考的是一篇CSDN的博客，此博客通过安装opencv和ffmpeg获取摄像头rtsp视频流(一般摄像头应该都支持rtsp协议)实现摄像头调用，比通过调用动辄几百行的海康SDK来调用摄像头不知简单了多少倍，下面贴上博客地址：
+
+https://blog.csdn.net/photonfly/article/details/73373545 
+
+但是这个博客并没有安装opencv和ffmpeg的教程，而且实际上他给的源代码也不完全，没有定义主函数最后也没有显示窗口，不过没关系，这些接下来我都会讲到。
+
+1）opencv在TX1刷机过程中已经分别安装到主机和TX1上了，我刷机刷的Jetpack3.0，自带opencv版本为2.4.13(可通过终端输入pkg-config --modversion opencv查看)目前感觉已完全够用。而且刷机完成后各种环境变量都已配置好，不用再去单独配置，感觉很方便。接下来是ffmpeg的安装，网上搜的教程有些十分复杂而且最后还不一定能安装成功，官网给出了两种方式，第一种十分简单，三行代码搞定，第二种是源代码安装，我选择的第一种，有兴趣的可以参照第二种试试。下面贴上安装ffmpeg的代码：
+
+sudo add-apt-repository ppa:djcj/hybrid  
+sudo apt-get update  
+sudo apt-get install ffmpeg  
+
+如上就安装好了。
+
+2）上面博客提到可以先在VLC里面试一下，但我经过操作发现，只有windows系统下VLC才能够成功读取视频流，Ubuntu系统下的话VLC会闪退。不过在Ubuntu系统下我们可以通过刚才安装的ffmpeg下的ffplay试试：
+
+首先通过网线将Ubuntu主机和摄像头连接起来，ping一下摄像头IP看能不能ping通，不能的话讲Ubuntu主机设置为静态IP，教程参见:
+
+https://blog.csdn.net/xiaohuozi_2016/article/details/54743992
+
+然后再次ping摄像头IP，此时应该能够ping通，然后在终端输入：
+
+ffplay rtsp://admin:12345678xin@192.168.1.64/h264/ch1/main/av_stream
+
+按下enter键运行，即可弹出摄像头视频窗口。
+
+**注：** rtsp://<用户名>:<密码>@<网络摄像机IP地址>/<视频编解码格式>/<通道号>/<主码流或者子码流>/av_stream
+
+     例：rtsp://admin:12345678xin@192.168.1.64/h264/ch1/main/av_stream
+
+以上是海康摄像头读取rtsp视频流的格式，在IP地址后应该还有个端口号，但是一般为默认的不用输入，其他摄像头格式可自行百度。
+
+3）通过在编译软件中配置环境然后通过代码调用摄像头。此时仍需要将摄像头与Ubuntu主机通过网线相连，然后看能不能ping通，不能ping通请参考2）中解决办法，ping通之后开始配置编译软件，我用的编译软件是Nsight Eclipse Edition，这也是刷完Jetpack3.0，主机就安装好的。创建工程及配置opencv参见以下教程：
+
+https://www.cnblogs.com/eczhou/p/7860598.html
+
+这里有一点需要注意，添加库文件前面的lib和后缀.so要去掉，而且只能一个一个添加，不要急，都要添加进去，不过下次再新建工程时可以批量复制过去。最后在新建的cpp文件里粘贴以下代码：
+
+    #include <stdio.h>
+    #include <opencv2/opencv.hpp>
+
+    using namespace std;
+    using namespace cv;
+
+    //Chose input
+    //通过以下三行代码分别表示选择视频流来源
+    //VideoCapture capture(0);//这行代码选择usb摄像头的视频源
+    VideoCapture capture("rtsp://admin:12345678xin@192.168.1.64/h264/ch1/main/av_stream");//这行代                          码选择访问rtsp视频流!!!!!!
+    //VideoCapture capture("input.mp4");//选择播放本地视频
+
+    // create mat to fill by external source
+    Mat frame;
+    int main()
+    {
+    for(;;)
+
+    {
+       bool OK = capture.grab();
+
+        if (OK == false){
+        cout << "cannot grab" << endl;
+        }
+        else{
+          // retrieve a frame of your source
+           capture.read(frame);
+          //OR
+         // capture >> frame;
+         imshow("window",frame);
+         WaitKey(30);
+       }
+    }
+    return 0;
+    }
+    
+然后编译运行就能显示啦！
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
